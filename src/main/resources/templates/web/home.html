@@ -472,6 +472,134 @@
                 document.getElementById('genre').value = config.genreId || '';
                 document.getElementById('perspective').value = config.perspectiveId || '';
             }
+
+            let currentSessionId = null;
+            let fullStory = '';
+
+            function generateSessionId() {
+                return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            function sendMessage() {
+                const input = document.getElementById('chatInput');
+                const message = input.value.trim();
+                
+                if (!message) return;
+                
+                addMessage('user', message);
+                input.value = '';
+                
+                // Si es la primera vez, iniciar sesión
+                if (!currentSessionId) {
+                    currentSessionId = generateSessionId();
+                    // Obtener configuración del modal
+                    const config = getCurrentConfig();
+                    startNewStory(config, message);
+                } else {
+                    continueStory(message);
+                }
+            }
+
+            function getCurrentConfig() {
+                return {
+                    firstCharacter: document.getElementById('firstCharacter').value,
+                    secondCharacter: document.getElementById('secondCharacter').value,
+                    background: document.getElementById('background').value,
+                    genre: document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text,
+                    perspective: document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text,
+                    situation: document.getElementById('firstCharacter').value + ' y ' + 
+                            document.getElementById('secondCharacter').value + 
+                            ' en ' + document.getElementById('background').value
+                };
+            }
+
+            function startNewStory(config, message) {
+                showLoading(true);
+                
+                fetch('/api/ai/start-story', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        sessionId: currentSessionId,
+                        config: JSON.stringify(config),
+                        message: message
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        fullStory = data.response;
+                        addMessage('ai', data.response);
+                    } else {
+                        addMessage('ai', '❌ Error al iniciar la historia');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    addMessage('ai', '❌ Error de conexión con la IA');
+                })
+                .finally(() => {
+                    showLoading(false);
+                });
+            }
+
+            function continueStory(message) {
+                showLoading(true);
+                
+                fetch('/api/ai/continue-story', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        sessionId: currentSessionId,
+                        message: message
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        fullStory = data.fullStory;
+                        addMessage('ai', data.response);
+                    } else {
+                        addMessage('ai', '❌ Error al continuar la historia');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    addMessage('ai', '❌ Error de conexión con la IA');
+                })
+                .finally(() => {
+                    showLoading(false);
+                });
+            }
+
+            function showLoading(show) {
+                const sendButton = document.querySelector('.send-button');
+                if (show) {
+                    sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                    sendButton.disabled = true;
+                } else {
+                    sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                    sendButton.disabled = false;
+                }
+            }
+
+            // Función para guardar la historia
+            function saveStory() {
+                if (!fullStory) {
+                    alert('No hay historia para guardar');
+                    return;
+                }
+                
+                const blob = new Blob([fullStory], { type: 'text/plain' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `historia_${new Date().toISOString().slice(0, 10)}.txt`;
+                a.click();
+            }
         });
     </script>
 </body>
