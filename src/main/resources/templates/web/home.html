@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title}">API AI - Generador de Historias</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0d6efd;
+            --bg-secondary: #6c757d;
+            --bg-success: #198754;
+            --bg-dark: #212529;
+            --bg-light: #f8f9fa;
+            --text-dark: #212529;
+            --text-light: #f8f9fa;
+            --card-bg: #ffffff;
+            --input-bg: #ffffff;
+            --border-color: #dee2e6;
+        }
+
+        .dark-mode {
+            --bg-primary: #0a58ca;
+            --bg-secondary: #5a6268;
+            --bg-success: #146c43;
+            --bg-dark: #121212;
+            --bg-light: #2d2d2d;
+            --text-dark: #e9ecef;
+            --text-light: #e9ecef;
+            --card-bg: #1e1e1e;
+            --input-bg: #2d2d2d;
+            --border-color: #495057;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            transition: all 0.3s ease;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar, footer {
+            background-color: var(--bg-primary) !important;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-color: var(--border-color);
+            color: var(--text-dark);
+        }
+
+        .form-control, .form-select {
+            background-color: var(--input-bg);
+            color: var(--text-dark);
+            border-color: var(--border-color);
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: var(--input-bg);
+            color: var(--text-dark);
+            border-color: var(--bg-primary);
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        }
+
+        .chat-box {
+            height: 400px;
+            overflow-y: auto;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .message {
+            padding: 10px 15px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            max-width: 70%;
+        }
+
+        .user-message {
+            background-color: var(--bg-primary);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .ai-message {
+            background-color: var(--bg-secondary);
+            color: white;
+            margin-right: auto;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .config-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 1050;
+            width: 90%;
+            max-width: 500px;
+            border: 1px solid var(--border-color);
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1040;
+        }
+
+        @media (max-width: 768px) {
+            .chat-box {
+                height: 300px;
+            }
+            
+            .config-modal {
+                width: 95%;
+                padding: 20px;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/web/">
+                <i class="fas fa-robot"></i> API AI System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link active" href="/web/">
+                        <i class="fas fa-home"></i> Inicio
+                    </a>
+                    <a class="nav-link" href="/web/stories">
+                        <i class="fas fa-book"></i> Historias
+                    </a>
+                    <a class="nav-link" href="/web/dashboard">
+                        <i class="fas fa-chart-bar"></i> Dashboard
+                    </a>
+                    <a class="nav-link" href="/hello">
+                        <i class="fas fa-code"></i> API
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container flex-grow-1 py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <!-- Header -->
+                <div class="text-center mb-5">
+                    <h1 class="display-5 fw-bold text-primary">
+                        <i class="fas fa-brain"></i> Generador de Historias IA
+                    </h1>
+                    <p class="lead">Crea historias increíbles con inteligencia artificial</p>
+                </div>
+
+                <!-- Chat Box -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-comments"></i> Conversación</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="chat-box" id="chatBox">
+                            <div class="message ai-message">
+                                <strong>AI:</strong> ¡Hola! Estoy aquí para ayudarte a crear historias increíbles. 
+                                Primero, configura los personajes y el escenario.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Section -->
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" id="chatInput" 
+                                       placeholder="Escribe tu mensaje aquí..." 
+                                       onkeypress="handleKeyPress(event)">
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-primary w-100" onclick="sendMessage()">
+                                    <i class="fas fa-paper-plane"></i> Enviar
+                                </button>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-primary w-100" onclick="toggleConfig()">
+                                    <i class="fas fa-cog"></i> Config
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div class="overlay" id="overlay" onclick="closeConfig()"></div>
+    <div class="config-modal" id="configModal">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-cog"></i> Configuración de Historia</h5>
+                <button type="button" class="btn-close btn-close-white float-end" onclick="closeConfig()"></button>
+            </div>
+            <div class="card-body">
+                <form id="configForm">
+                    <div class="mb-3">
+                        <label class="form-label">Primer Personaje</label>
+                        <input type="text" class="form-control" id="firstCharacter"
+                               placeholder="Ej: Un valiente caballero">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Segundo Personaje</label>
+                        <input type="text" class="form-control" id="secondCharacter"
+                               placeholder="Ej: Una princesa inteligente">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Escenario/Fondo</label>
+                        <textarea class="form-control" rows="3" id="background"
+                                  placeholder="Ej: Un castillo medieval en las montañas"></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Género</label>
+                            <select class="form-select" id="genre">
+                                <option value="">Seleccionar género...</option>
+                                <option th:each="genre : ${genres}" 
+                                        th:value="${genre.id}" 
+                                        th:text="${genre.description}">
+                                    Género
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Perspectiva</label>
+                            <select class="form-select" id="perspective">
+                                <option value="">Seleccionar perspectiva...</option>
+                                <option th:each="perspective : ${perspectives}" 
+                                        th:value="${perspective.id}" 
+                                        th:text="${perspective.description}">
+                                    Perspectiva
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success" onclick="saveConfig()">
+                            <i class="fas fa-save"></i> Guardar Configuración
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="closeConfig()">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theme Toggle Button -->
+    <button class="btn btn-primary theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <!-- Footer -->
+    <footer class="mt-auto">
+        <div class="container">
+            <p class="text-center mb-0 py-3">
+                &copy; 2024 API AI System. Desarrollado con Spring Boot y Thymeleaf
+            </p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Theme management
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const icon = document.querySelector('.theme-toggle i');
+            if (document.body.classList.contains('dark-mode')) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            const icon = document.querySelector('.theme-toggle i');
+            icon.classList.remove('fa-moon');
+            icon.classList.add('fa-sun');
+        }
+
+        // Configuration modal functions
+        function toggleConfig() {
+            console.log('toggleConfig called');
+            const modal = document.getElementById('configModal');
+            const overlay = document.getElementById('overlay');
+            
+            if (modal.style.display === 'block') {
+                modal.style.display = 'none';
+                overlay.style.display = 'none';
+            } else {
+                modal.style.display = 'block';
+                overlay.style.display = 'block';
+            }
+        }
+
+        function closeConfig() {
+            console.log('closeConfig called');
+            document.getElementById('configModal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function saveConfig() {
+            const firstCharacter = document.getElementById('firstCharacter').value;
+            const secondCharacter = document.getElementById('secondCharacter').value;
+            const background = document.getElementById('background').value;
+            const genreId = document.getElementById('genre').value;
+            const perspectiveId = document.getElementById('perspective').value;
+            
+            // Validación básica
+            if (!firstCharacter || !secondCharacter || !background || !genreId || !perspectiveId) {
+                alert('Por favor, completa todos los campos');
+                return;
+            }
+            
+            // Crear objeto con los datos
+            const configData = {
+                firstCharacter: firstCharacter,
+                secondCharacter: secondCharacter,
+                background: background,
+                genreId: parseInt(genreId),
+                perspectiveId: parseInt(perspectiveId)
+            };
+            
+            // Enviar al servidor usando Fetch API
+            fetch('/web/api/saveConfig', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(configData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error en la respuesta del servidor');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Configuración guardada:', data);
+                
+                // Guardar en localStorage también
+                localStorage.setItem('storyConfig', JSON.stringify(configData));
+                
+                // Mostrar mensaje de éxito
+                alert('Configuración guardada correctamente (ID: ' + data.id + ')');
+                closeConfig();
+                
+                // Mostrar la configuración en el chat
+                const genreText = document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text;
+                const perspectiveText = document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text;
+                
+                addMessage('ai', `¡Perfecto! Configuración guardada:
+        • Personaje 1: ${firstCharacter}
+        • Personaje 2: ${secondCharacter}
+        • Escenario: ${background}
+        • Género: ${genreText}
+        • Perspectiva: ${perspectiveText}`);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al guardar la configuración: ' + error.message);
+            });
+        }
+
+        // Chat functionality
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (message) {
+                addMessage('user', message);
+                input.value = '';
+                
+                // Simular respuesta de la IA
+                setTimeout(() => {
+                    addMessage('ai', '¡Interesante! ¿Te gustaría que continúe la historia con esta dirección?');
+                }, 1000);
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function addMessage(sender, text) {
+            const chatBox = document.getElementById('chatBox');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.innerHTML = `<strong>${sender === 'user' ? 'Tú' : 'AI'}:</strong> ${text}`;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        // Prevenir que el modal se cierre al hacer clic dentro
+        document.getElementById('configModal').addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
+
+        // Cerrar modal con ESC key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeConfig();
+            }
+        });
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Página cargada correctamente');
+            // Cargar configuración previa si existe
+            const savedConfig = localStorage.getItem('storyConfig');
+            if (savedConfig) {
+                const config = JSON.parse(savedConfig);
+                document.getElementById('firstCharacter').value = config.firstCharacter || '';
+                document.getElementById('secondCharacter').value = config.secondCharacter || '';
+                document.getElementById('background').value = config.background || '';
+                document.getElementById('genre').value = config.genreId || '';
+                document.getElementById('perspective').value = config.perspectiveId || '';
+            }
+        });
+    </script>
+</body>
+</html>
