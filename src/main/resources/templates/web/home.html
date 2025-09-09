@@ -80,6 +80,7 @@
             border-radius: 15px;
             margin-bottom: 10px;
             max-width: 70%;
+            word-wrap: break-word;
         }
 
         .user-message {
@@ -100,6 +101,12 @@
             bottom: 20px;
             right: 20px;
             z-index: 1000;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .config-modal {
@@ -116,6 +123,8 @@
             width: 90%;
             max-width: 500px;
             border: 1px solid var(--border-color);
+            max-height: 80vh;
+            overflow-y: auto;
         }
 
         .overlay {
@@ -127,6 +136,11 @@
             height: 100%;
             background-color: rgba(0,0,0,0.5);
             z-index: 1040;
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
         }
 
         @media (max-width: 768px) {
@@ -186,16 +200,24 @@
                     <p class="lead">Crea historias increíbles con inteligencia artificial</p>
                 </div>
 
+                <!-- Status Indicator -->
+                <div class="alert alert-info mb-4" id="statusIndicator">
+                    <i class="fas fa-circle-notch fa-spin"></i> Conectando con el servicio de IA...
+                </div>
+
                 <!-- Chat Box -->
                 <div class="card shadow-sm mb-4">
-                    <div class="card-header bg-primary text-white">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="fas fa-comments"></i> Conversación</h5>
+                        <button class="btn btn-sm btn-light" onclick="saveStory()">
+                            <i class="fas fa-download"></i> Guardar
+                        </button>
                     </div>
                     <div class="card-body p-0">
                         <div class="chat-box" id="chatBox">
                             <div class="message ai-message">
                                 <strong>AI:</strong> ¡Hola! Estoy aquí para ayudarte a crear historias increíbles. 
-                                Primero, configura los personajes y el escenario.
+                                Primero, configura los personajes y el escenario usando el botón "Config".
                             </div>
                         </div>
                     </div>
@@ -207,11 +229,11 @@
                         <div class="row g-3 align-items-center">
                             <div class="col-md-8">
                                 <input type="text" class="form-control" id="chatInput" 
-                                       placeholder="Escribe tu mensaje aquí..." 
+                                       placeholder="Escribe tu mensaje o instrucciones para la historia..." 
                                        onkeypress="handleKeyPress(event)">
                             </div>
                             <div class="col-md-2">
-                                <button class="btn btn-primary w-100" onclick="sendMessage()">
+                                <button class="btn btn-primary w-100" id="sendButton" onclick="sendMessage()">
                                     <i class="fas fa-paper-plane"></i> Enviar
                                 </button>
                             </div>
@@ -240,25 +262,25 @@
                     <div class="mb-3">
                         <label class="form-label">Primer Personaje</label>
                         <input type="text" class="form-control" id="firstCharacter"
-                               placeholder="Ej: Un valiente caballero">
+                               placeholder="Ej: Un valiente caballero" required>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Segundo Personaje</label>
                         <input type="text" class="form-control" id="secondCharacter"
-                               placeholder="Ej: Una princesa inteligente">
+                               placeholder="Ej: Una princesa inteligente" required>
                     </div>
 
                     <div class="mb-3">
                         <label class="form-label">Escenario/Fondo</label>
                         <textarea class="form-control" rows="3" id="background"
-                                  placeholder="Ej: Un castillo medieval en las montañas"></textarea>
+                                  placeholder="Ej: Un castillo medieval en las montañas" required></textarea>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Género</label>
-                            <select class="form-select" id="genre">
+                            <select class="form-select" id="genre" required>
                                 <option value="">Seleccionar género...</option>
                                 <option th:each="genre : ${genres}" 
                                         th:value="${genre.id}" 
@@ -269,7 +291,7 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Perspectiva</label>
-                            <select class="form-select" id="perspective">
+                            <select class="form-select" id="perspective" required>
                                 <option value="">Seleccionar perspectiva...</option>
                                 <option th:each="perspective : ${perspectives}" 
                                         th:value="${perspective.id}" 
@@ -309,6 +331,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Variables globales
+        let currentSessionId = null;
+        let fullStory = '';
+        let isAIReady = false;
+
         // Theme management
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
@@ -334,7 +361,6 @@
 
         // Configuration modal functions
         function toggleConfig() {
-            console.log('toggleConfig called');
             const modal = document.getElementById('configModal');
             const overlay = document.getElementById('overlay');
             
@@ -348,7 +374,6 @@
         }
 
         function closeConfig() {
-            console.log('closeConfig called');
             document.getElementById('configModal').style.display = 'none';
             document.getElementById('overlay').style.display = 'none';
         }
@@ -366,54 +391,35 @@
                 return;
             }
             
-            // Crear objeto con los datos
+            // Crear objeto con los datos para la API de IA
             const configData = {
                 firstCharacter: firstCharacter,
                 secondCharacter: secondCharacter,
                 background: background,
                 genreId: parseInt(genreId),
-                perspectiveId: parseInt(perspectiveId)
+                perspectiveId: parseInt(perspectiveId),
+                situation: `${firstCharacter} y ${secondCharacter} en ${background}`
             };
             
-            // Enviar al servidor usando Fetch API
-            fetch('/web/api/saveConfig', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(configData)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Error en la respuesta del servidor');
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Configuración guardada:', data);
-                
-                // Guardar en localStorage también
-                localStorage.setItem('storyConfig', JSON.stringify(configData));
-                
-                // Mostrar mensaje de éxito
-                alert('Configuración guardada correctamente (ID: ' + data.id + ')');
-                closeConfig();
-                
-                // Mostrar la configuración en el chat
-                const genreText = document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text;
-                const perspectiveText = document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text;
-                
-                addMessage('ai', `¡Perfecto! Configuración guardada:
-        • Personaje 1: ${firstCharacter}
-        • Personaje 2: ${secondCharacter}
-        • Escenario: ${background}
-        • Género: ${genreText}
-        • Perspectiva: ${perspectiveText}`);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error al guardar la configuración: ' + error.message);
-            });
+            // Guardar en localStorage para futuras sesiones
+            localStorage.setItem('storyConfig', JSON.stringify(configData));
+            
+            // Mostrar mensaje de éxito
+            alert('✅ Configuración guardada correctamente');
+            closeConfig();
+            
+            // Mostrar la configuración en el chat
+            const genreText = document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text;
+            const perspectiveText = document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text;
+            
+            addMessage('ai', `¡Perfecto! Configuración guardada:
+• Personaje 1: ${firstCharacter}
+• Personaje 2: ${secondCharacter}
+• Escenario: ${background}
+• Género: ${genreText}
+• Perspectiva: ${perspectiveText}
+
+Ahora puedes comenzar a escribir para iniciar la historia.`);
         }
 
         // Chat functionality
@@ -421,14 +427,22 @@
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
             
-            if (message) {
-                addMessage('user', message);
-                input.value = '';
-                
-                // Simular respuesta de la IA
-                setTimeout(() => {
-                    addMessage('ai', '¡Interesante! ¿Te gustaría que continúe la historia con esta dirección?');
-                }, 1000);
+            if (!message) return;
+            
+            addMessage('user', message);
+            input.value = '';
+            
+            // Si es la primera vez, iniciar sesión
+            if (!currentSessionId) {
+                const config = getCurrentConfig();
+                if (!config.firstCharacter || !config.secondCharacter) {
+                    addMessage('ai', '⚠️ Primero configura los personajes y escenario usando el botón "Config".');
+                    return;
+                }
+                currentSessionId = generateSessionId();
+                startNewStory(config, message);
+            } else {
+                continueStory(message);
             }
         }
 
@@ -447,6 +461,133 @@
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function getCurrentConfig() {
+            return {
+                firstCharacter: document.getElementById('firstCharacter').value,
+                secondCharacter: document.getElementById('secondCharacter').value,
+                background: document.getElementById('background').value,
+                genre: document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text,
+                perspective: document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text,
+                situation: document.getElementById('firstCharacter').value + ' y ' + 
+                          document.getElementById('secondCharacter').value + 
+                          ' en ' + document.getElementById('background').value
+            };
+        }
+
+        function startNewStory(config, message) {
+            showLoading(true);
+            
+            fetch('/api/ai/start-story', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    config: JSON.stringify(config)
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error del servidor: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    fullStory = data.response;
+                    currentSessionId = data.sessionId;
+                    addMessage('ai', data.response);
+                    updateStatus('✅ Conectado - Listo para continuar', 'success');
+                } else {
+                    throw new Error(data.response || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addMessage('ai', '❌ Error al iniciar la historia: ' + error.message);
+                updateStatus('❌ Error de conexión', 'danger');
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        }
+
+        function continueStory(message) {
+            showLoading(true);
+            
+            fetch('/api/ai/continue-story', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sessionId: currentSessionId,
+                    message: message
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error del servidor: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    fullStory = data.fullStory;
+                    addMessage('ai', data.response);
+                } else {
+                    throw new Error(data.response || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addMessage('ai', '❌ Error al continuar la historia: ' + error.message);
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        }
+
+        function showLoading(show) {
+            const sendButton = document.getElementById('sendButton');
+            const chatInput = document.getElementById('chatInput');
+            
+            if (show) {
+                sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                sendButton.disabled = true;
+                chatInput.disabled = true;
+                document.body.classList.add('loading');
+            } else {
+                sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
+                sendButton.disabled = false;
+                chatInput.disabled = false;
+                document.body.classList.remove('loading');
+            }
+        }
+
+        function updateStatus(message, type) {
+            const statusIndicator = document.getElementById('statusIndicator');
+            statusIndicator.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
+            statusIndicator.className = `alert alert-${type} mb-4`;
+        }
+
+        function saveStory() {
+            if (!fullStory) {
+                alert('No hay historia para guardar');
+                return;
+            }
+            
+            const blob = new Blob([fullStory], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `historia_${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+        }
+
         // Prevenir que el modal se cierre al hacer clic dentro
         document.getElementById('configModal').addEventListener('click', function(event) {
             event.stopPropagation();
@@ -462,145 +603,42 @@
         // Inicialización
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Página cargada correctamente');
+            
             // Cargar configuración previa si existe
             const savedConfig = localStorage.getItem('storyConfig');
             if (savedConfig) {
-                const config = JSON.parse(savedConfig);
-                document.getElementById('firstCharacter').value = config.firstCharacter || '';
-                document.getElementById('secondCharacter').value = config.secondCharacter || '';
-                document.getElementById('background').value = config.background || '';
-                document.getElementById('genre').value = config.genreId || '';
-                document.getElementById('perspective').value = config.perspectiveId || '';
-            }
-
-            let currentSessionId = null;
-            let fullStory = '';
-
-            function generateSessionId() {
-                return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            }
-
-            function sendMessage() {
-                const input = document.getElementById('chatInput');
-                const message = input.value.trim();
-                
-                if (!message) return;
-                
-                addMessage('user', message);
-                input.value = '';
-                
-                // Si es la primera vez, iniciar sesión
-                if (!currentSessionId) {
-                    currentSessionId = generateSessionId();
-                    // Obtener configuración del modal
-                    const config = getCurrentConfig();
-                    startNewStory(config, message);
-                } else {
-                    continueStory(message);
+                try {
+                    const config = JSON.parse(savedConfig);
+                    document.getElementById('firstCharacter').value = config.firstCharacter || '';
+                    document.getElementById('secondCharacter').value = config.secondCharacter || '';
+                    document.getElementById('background').value = config.background || '';
+                    document.getElementById('genre').value = config.genreId || '';
+                    document.getElementById('perspective').value = config.perspectiveId || '';
+                } catch (e) {
+                    console.error('Error cargando configuración:', e);
                 }
             }
 
-            function getCurrentConfig() {
-                return {
-                    firstCharacter: document.getElementById('firstCharacter').value,
-                    secondCharacter: document.getElementById('secondCharacter').value,
-                    background: document.getElementById('background').value,
-                    genre: document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text,
-                    perspective: document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text,
-                    situation: document.getElementById('firstCharacter').value + ' y ' + 
-                            document.getElementById('secondCharacter').value + 
-                            ' en ' + document.getElementById('background').value
-                };
-            }
-
-            function startNewStory(config, message) {
-                showLoading(true);
-                
-                fetch('/api/ai/start-story', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        sessionId: currentSessionId,
-                        config: JSON.stringify(config),
-                        message: message
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        fullStory = data.response;
-                        addMessage('ai', data.response);
-                    } else {
-                        addMessage('ai', '❌ Error al iniciar la historia');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    addMessage('ai', '❌ Error de conexión con la IA');
-                })
-                .finally(() => {
-                    showLoading(false);
-                });
-            }
-
-            function continueStory(message) {
-                showLoading(true);
-                
-                fetch('/api/ai/continue-story', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        sessionId: currentSessionId,
-                        message: message
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        fullStory = data.fullStory;
-                        addMessage('ai', data.response);
-                    } else {
-                        addMessage('ai', '❌ Error al continuar la historia');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    addMessage('ai', '❌ Error de conexión con la IA');
-                })
-                .finally(() => {
-                    showLoading(false);
-                });
-            }
-
-            function showLoading(show) {
-                const sendButton = document.querySelector('.send-button');
-                if (show) {
-                    sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-                    sendButton.disabled = true;
-                } else {
-                    sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
-                    sendButton.disabled = false;
-                }
-            }
-
-            // Función para guardar la historia
-            function saveStory() {
-                if (!fullStory) {
-                    alert('No hay historia para guardar');
-                    return;
-                }
-                
-                const blob = new Blob([fullStory], { type: 'text/plain' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = `historia_${new Date().toISOString().slice(0, 10)}.txt`;
-                a.click();
-            }
+            // Verificar estado del servicio
+            checkServiceStatus();
         });
+
+        function checkServiceStatus() {
+            fetch('/api/ai/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.initialized) {
+                        updateStatus('✅ Conectado al servicio de IA', 'success');
+                        isAIReady = true;
+                    } else {
+                        updateStatus('⚠️ Servicio de IA no disponible', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking status:', error);
+                    updateStatus('❌ No se pudo conectar al servicio de IA', 'danger');
+                });
+        }
     </script>
 </body>
 </html>
