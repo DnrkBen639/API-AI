@@ -22,6 +22,7 @@ public class AIChatController {
         try {
             String sessionId = request.getOrDefault("sessionId", "session_" + System.currentTimeMillis());
             String configJson = request.get("config");
+            String userInput = request.get("userInput");
             
             if (configJson == null || configJson.trim().isEmpty()) {
                 return Map.of(
@@ -29,8 +30,15 @@ public class AIChatController {
                     "status", "error"
                 );
             }
+
+            if (userInput == null || userInput.trim().isEmpty()) {
+                return Map.of(
+                    "response", "Error: Configure la situación inicial",
+                    "status", "error"
+                );
+            }
             
-            String story = aiStoryService.generateStory(configJson);
+            String story = aiStoryService.generateStory(configJson, userInput);
             
             // Crear mapa de sesión con ambos datos
             Map<String, Object> sessionData = new HashMap<>();

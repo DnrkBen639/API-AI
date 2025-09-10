@@ -5,7 +5,11 @@ import com.example.API_AI.dto.StoryConfigResponse;
 import com.example.API_AI.service.GenreService;
 import com.example.API_AI.service.PerspectiveService;
 import com.example.API_AI.service.StoryConfigService;
+
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -35,23 +39,22 @@ public class WebController {
     }
 
     @PostMapping("/saveConfig")
-    public String saveConfig(@ModelAttribute StoryConfigRequest request,
-                           BindingResult result,
-                           RedirectAttributes redirectAttributes) {
-        
-        if (result.hasErrors()) {
-            redirectAttributes.addFlashAttribute("error", "Por favor, completa todos los campos correctamente");
-            return "redirect:/web/";
-        }
-        
+    @ResponseBody // Add this annotation
+    public ResponseEntity<?> saveConfig(@RequestBody StoryConfigRequest request) { // Change to @RequestBody
         try {
-            StoryConfigResponse response = storyConfigService.create(convertToStoryConfigRequest(request));
-            redirectAttributes.addFlashAttribute("success", "Configuración guardada correctamente (ID: " + response.getId() + ")");
+            StoryConfigResponse response = storyConfigService.create(request);
+            
+            return ResponseEntity.ok().body(Map.of(
+                "status", "success",
+                "id", response.getId(),
+                "message", "Configuración guardada correctamente (ID: " + response.getId() + ")"
+            ));
         } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("error", "Error al guardar: " + e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of(
+                "status", "error",
+                "message", "Error al guardar: " + e.getMessage()
+            ));
         }
-        
-        return "redirect:/web/";
     }
 
     private com.example.API_AI.dto.StoryConfigRequest convertToStoryConfigRequest(StoryConfigRequest formRequest) {

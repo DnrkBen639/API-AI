@@ -20,7 +20,7 @@ public class AIStoryService {
         try {
             // Obtener el directorio actual del proyecto
             String projectDir = System.getProperty("user.dir");
-            String pythonScriptPath = projectDir + "/src/main/python/story_generator.py";
+            String pythonScriptPath = projectDir + "/src/main/python/story_generator_v2.py";
             
             System.out.println("📍 Inicializando proceso Python...");
             System.out.println("📍 Ruta del script: " + pythonScriptPath);
@@ -105,8 +105,8 @@ public class AIStoryService {
         }
     }
 
-    public String generateStory(String configJson) {
-        return sendCommand("GENERATE", "Iniciar historia", configJson);
+    public String generateStory(String configJson, String userInput) {
+        return sendCommand("GENERATE", "Start story situation:" + userInput, configJson);
     }
 
     public String continueStory(String userInput, String configJson) {

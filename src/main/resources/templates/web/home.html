@@ -11,6 +11,7 @@
             --bg-primary: #0d6efd;
             --bg-secondary: #6c757d;
             --bg-success: #198754;
+            --bg-danger: #dc3545;  /* Add this line */
             --bg-dark: #212529;
             --bg-light: #f8f9fa;
             --text-dark: #212529;
@@ -24,6 +25,7 @@
             --bg-primary: #0a58ca;
             --bg-secondary: #5a6268;
             --bg-success: #146c43;
+            --bg-danger: #bb2d3b;  /* Add this line */
             --bg-dark: #121212;
             --bg-light: #2d2d2d;
             --text-dark: #e9ecef;
@@ -138,6 +140,12 @@
             z-index: 1040;
         }
 
+        .btn-outline-danger:hover {
+            background-color: var(--bg-danger);
+            border-color: var(--bg-danger);
+            color: white;
+        }
+
         .loading {
             opacity: 0.7;
             pointer-events: none;
@@ -195,9 +203,8 @@
                 <!-- Header -->
                 <div class="text-center mb-5">
                     <h1 class="display-5 fw-bold text-primary">
-                        <i class="fas fa-brain"></i> Generador de Historias IA
+                        <i class="fas fa-brain"></i> IA
                     </h1>
-                    <p class="lead">Crea historias increíbles con inteligencia artificial</p>
                 </div>
 
                 <!-- Status Indicator -->
@@ -216,7 +223,7 @@
                     <div class="card-body p-0">
                         <div class="chat-box" id="chatBox">
                             <div class="message ai-message">
-                                <strong>AI:</strong> ¡Hola! Estoy aquí para ayudarte a crear historias increíbles. 
+                                <strong>AI:</strong>
                                 Primero, configura los personajes y el escenario usando el botón "Config".
                             </div>
                         </div>
@@ -227,10 +234,10 @@
                 <div class="card shadow-sm">
                     <div class="card-body">
                         <div class="row g-3 align-items-center">
-                            <div class="col-md-8">
+                            <div class="col-md-6">
                                 <input type="text" class="form-control" id="chatInput" 
-                                       placeholder="Escribe tu mensaje o instrucciones para la historia..." 
-                                       onkeypress="handleKeyPress(event)">
+                                    placeholder="Escribe tu mensaje o instrucciones para la historia..." 
+                                    onkeypress="handleKeyPress(event)">
                             </div>
                             <div class="col-md-2">
                                 <button class="btn btn-primary w-100" id="sendButton" onclick="sendMessage()">
@@ -240,6 +247,11 @@
                             <div class="col-md-2">
                                 <button class="btn btn-outline-primary w-100" onclick="toggleConfig()">
                                     <i class="fas fa-cog"></i> Config
+                                </button>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-danger w-100" onclick="resetStory()" id="resetButton">
+                                    <i class="fas fa-trash"></i> Reset
                                 </button>
                             </div>
                         </div>
@@ -398,11 +410,68 @@
                 background: background,
                 genreId: parseInt(genreId),
                 perspectiveId: parseInt(perspectiveId),
-                situation: `${firstCharacter} y ${secondCharacter} en ${background}`
+                situation: `${firstCharacter} and ${secondCharacter} in ${background}`
             };
             
             // Guardar en localStorage para futuras sesiones
             localStorage.setItem('storyConfig', JSON.stringify(configData));
+
+            showLoading(true);
+
+            fetch('/web/saveConfig', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(configData) // Send the object directly
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                console.log('Response URL:', response.url);
+                
+                if (!response.ok) {
+                    // Get more details about the error
+                    return response.text().then(text => {
+                        throw new Error(`Error ${response.status}: ${response.statusText}. Response: ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Success data:', data);
+                if (data.status === 'success') {
+                    fullStory = data.response;
+                    currentSessionId = data.sessionId;
+                    // Mostrar mensaje de éxito
+                    alert('✅ Configuración guardada correctamente');
+                    closeConfig();
+                    
+                    // Mostrar la configuración en el chat
+                    const genreText = document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text;
+                    const perspectiveText = document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text;
+                    
+                    addMessage('ai', `¡Perfecto! Configuración guardada:
+            • Personaje 1: ${firstCharacter}
+            • Personaje 2: ${secondCharacter}
+            • Escenario: ${background}
+            • Género: ${genreText}
+            • Perspectiva: ${perspectiveText}
+
+            Ahora puedes comenzar a escribir para iniciar la historia.`);
+                } else {
+                    throw new Error(data.response || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error details:', error);
+                addMessage('ai', '❌ Error al guardar configuración: ' + error.message);
+                updateStatus('❌ Error de conexión', 'danger');
+                // Keep the alert for user feedback
+                alert('❌ Error al guardar la configuración. Verifica la consola para más detalles.');
+            })
+            .finally(() => {
+                showLoading(false);
+            });
             
             // Mostrar mensaje de éxito
             alert('✅ Configuración guardada correctamente');
@@ -487,7 +556,8 @@ Ahora puedes comenzar a escribir para iniciar la historia.`);
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    config: JSON.stringify(config)
+                    config: JSON.stringify(config),
+                    userInput: JSON.stringify(message)
                 })
             })
             .then(response => {
@@ -552,19 +622,80 @@ Ahora puedes comenzar a escribir para iniciar la historia.`);
             });
         }
 
+        function resetStory() {
+            if (!currentSessionId) {
+                alert('No hay historia activa para resetear');
+                return;
+            }
+
+            if (!confirm('¿Estás seguro de que quieres resetear la historia? Se perderá todo el progreso.')) {
+                return;
+            }
+
+            showLoading(true);
+            
+            fetch(`/api/ai/story/${currentSessionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error del servidor: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Limpiar la interfaz
+                    const chatBox = document.getElementById('chatBox');
+                    chatBox.innerHTML = `
+                        <div class="message ai-message">
+                            <strong>AI:</strong> ¡Hola! Estoy aquí para ayudarte a crear historias increíbles. 
+                            Primero, configura los personajes y el escenario usando el botón "Config".
+                        </div>
+                    `;
+                    
+                    // Resetear variables
+                    currentSessionId = null;
+                    fullStory = '';
+                    
+                    // Mostrar mensaje de éxito
+                    addMessage('ai', '✅ Historia reseteada correctamente. Puedes comenzar una nueva historia.');
+                    
+                    alert('Historia reseteada correctamente');
+                } else {
+                    throw new Error(data.message || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error al resetear la historia: ' + error.message);
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        }
+
+
+
         function showLoading(show) {
             const sendButton = document.getElementById('sendButton');
             const chatInput = document.getElementById('chatInput');
+            const resetButton = document.getElementById('resetButton');
             
             if (show) {
                 sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
                 sendButton.disabled = true;
                 chatInput.disabled = true;
+                resetButton.disabled = true;
                 document.body.classList.add('loading');
             } else {
                 sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
                 sendButton.disabled = false;
                 chatInput.disabled = false;
+                resetButton.disabled = false;
                 document.body.classList.remove('loading');
             }
         }

@@ -14,7 +14,7 @@ class StoryGenerator:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             
             # Ruta exacta donde está el modelo (usa la que ya tienes configurada)
-            self.model_path = "C:/Users/Ben/AppData/Local/Programs/Microsoft VS Code/downloaded_models/models--bartowski--gemma-2-2b-it-abliterated-GGUF/snapshots/11124c8787de96de70c3d5cb8d5d49c420ebcdf8/gemma-2-2b-it-abliterated-Q4_K_M.gguf"
+            self.model_path = "C:/Users/Ben/AppData/Local/Programs/Microsoft VS Code/downloaded_models/models--bartowski--gemma-2-2b-it-abliterated-GGUF/snapshots/11124c8787de96de70c3d5cb8d5d49c420ebcdf8/gemma-2-2b-it-abliterated-Q8_0.gguf"
             
             print(f"📍 Ruta del modelo: {self.model_path}", file=sys.stderr)
             print(f"📁 Existe: {os.path.exists(self.model_path)}", file=sys.stderr)
@@ -48,13 +48,13 @@ class StoryGenerator:
             
             start_time = time.time()
             
-            # CONFIGURACIÓN MÁS CONSERVADORA
+            # CONFIGURACIÓN
             self.llm = Llama(
                 model_path=self.model_path,
-                n_ctx=2048,      # REDUCIDO - mucho más seguro
-                n_gpu_layers=10,  # REDUCIDO - empieza con pocas capas en GPU
-                n_batch=128,      # REDUCIDO
-                n_threads=2,      # REDUCIDO
+                n_ctx=8192,      
+                n_gpu_layers=99,  
+                n_batch=512,      
+                n_threads=8,      
                 verbose=False,    # Desactivado para menos output
                 seed=42           # Para reproducibilidad
             )
@@ -111,60 +111,60 @@ class StoryGenerator:
             return error_msg
     
     def create_story_prompt(self, config, user_input, is_continuation=False):
-        """Crea el prompt para la generación"""
+        """Create the prompt for generation"""
         try:
             if not is_continuation:
                 return f"""<start_of_turn>system
-Escribe el PRIMER CAPÍTULO de una historia de {config.get('genre', 'fantasía')} con:
+                Write the FIRST CHAPTER of a {config.get('genre', 'fantasy')} story with:
 
-SITUACIÓN INICIAL: {config.get('situation', 'una aventura emocionante')}
+                INITIAL SITUATION: {config.get('situation', 'an exciting adventure')}
 
-PERSONAJES PRINCIPALES:
-1. {config.get('char1', 'Personaje 1')}
-2. {config.get('char2', 'Personaje 2')}
+                MAIN CHARACTERS:
+                1. {config.get('char1', 'Character 1')}
+                2. {config.get('char2', 'Character 2')}
 
-REGLAS:
-- Usar perspectiva: {config.get('perspective', 'tercera persona')}
-- Estilo narrativo apropiado para el género
-- Introducir conflicto o misterio inicial
-- Longitud: aproximadamente 300-400 palabras
+                RULES:
+                - Use perspective: {config.get('perspective', 'third person')}
+                - Narrative style appropriate for the genre
+                - Introduce initial conflict or mystery
+                - Length: approximately 300-400 words
 
-Responde solo con el texto de la historia, sin comentarios.<end_of_turn>
+                Respond only with the story text, no comments.<end_of_turn>
 
-<start_of_turn>user
-Comienza la historia<end_of_turn>
-<start_of_turn>model
-"""
+                <start_of_turn>user
+                Begin the story<end_of_turn>
+                <start_of_turn>model
+                """
             else:
-                # Usar memoria para mejor coherencia
+                # Use memory for better coherence
                 memory_context = self.get_memory_context()
                 
                 return f"""<start_of_turn>system
-Continúa la historia manteniendo coherencia con:
+                Continue the story maintaining coherence with:
 
-Género: {config.get('genre', 'fantasía')}
-Personajes: {config.get('char1', 'Personaje 1')} y {config.get('char2', 'Personaje 2')}
-Perspectiva: {config.get('perspective', 'tercera persona')}
+                Genre: {config.get('genre', 'fantasy')}
+                Characters: {config.get('char1', 'Character 1')} and {config.get('char2', 'Character 2')}
+                Perspective: {config.get('perspective', 'third person')}
 
-{memory_context}
+                {memory_context}
 
-Contexto previo: {config.get('current_story', '')[:800]}...
+                Previous context: {config.get('current_story', '')[:800]}...
 
-INSTRUCCIONES:
-- Desarrolla la historia naturalmente basado en: {user_input}
-- Mantén coherencia con personajes y eventos establecidos
-- Longitud: 150-250 palabras
-- Responde solo con el siguiente segmento narrativo
+                INSTRUCTIONS:
+                - Develop the story naturally based on: {user_input}
+                - Maintain consistency with established characters and events
+                - Length: 300-400 words
+                - Respond only with the next narrative segment
 
-Responde únicamente con texto narrativo, sin metadatos.<end_of_turn>
+                Respond only with narrative text, no metadata.<end_of_turn>
 
-<start_of_turn>user
-{user_input}<end_of_turn>
-<start_of_turn>model
-"""
+                <start_of_turn>user
+                {user_input}<end_of_turn>
+                <start_of_turn>model
+                """
         except Exception as e:
-            print(f"❌ Error creando prompt: {str(e)}", file=sys.stderr)
-            return f"Error creando prompt: {str(e)}"
+            print(f"❌ Error creating prompt: {str(e)}", file=sys.stderr)
+            return f"Error creating prompt: {str(e)}"
     
     def update_story_memory(self, new_text):
         """Actualiza la memoria de personajes y eventos"""
@@ -208,10 +208,10 @@ Responde únicamente con texto narrativo, sin metadatos.<end_of_turn>
             
             memory_text = "MEMORIA DE PERSONAJES:\n"
             for char, info in list(self.character_memory.items())[:3]:
-                memory_text += f"- {char}: mencionado {info['mentions']} veces\n"
+                memory_text += f"- {char}: mentioned {info['mentions']} times\n"
             
             if self.plot_points:
-                memory_text += "\nEVENTOS RECIENTES:\n"
+                memory_text += "\RECENT EVENTS:\n"
                 for event in self.plot_points[-3:]:
                     memory_text += f"- {event}\n"
             
