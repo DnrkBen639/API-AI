@@ -13,6 +13,7 @@ public class AIStoryService {
     private BufferedReader reader;
     private BufferedWriter writer;
     private boolean initialized = false;
+    private boolean reinitializationAttempted = false;
 
     @PostConstruct
     public void initialize() {
@@ -27,10 +28,11 @@ public class AIStoryService {
             // Verificar que el script existe
             File scriptFile = new File(pythonScriptPath);
             if (!scriptFile.exists()) {
+                System.err.println("❌ El script Python no existe en: " + pythonScriptPath);
                 throw new RuntimeException("El script Python no existe en: " + pythonScriptPath);
             }
             
-            ProcessBuilder pb = new ProcessBuilder("python", pythonScriptPath);
+            ProcessBuilder pb = new ProcessBuilder("py", pythonScriptPath);
             pb.redirectErrorStream(true);
             pb.directory(new File(projectDir));
             pythonProcess = pb.start();
@@ -38,32 +40,68 @@ public class AIStoryService {
             reader = new BufferedReader(new InputStreamReader(pythonProcess.getInputStream()));
             writer = new BufferedWriter(new OutputStreamWriter(pythonProcess.getOutputStream()));
             
-            // Esperar a que el proceso se inicialice
-            TimeUnit.SECONDS.sleep(3);
-            
-            // Leer salida inicial para verificar que funciona
+            // DEBUG: Leer toda la salida inicial
+            System.out.println("📍 Esperando inicialización Python...");
             StringBuilder initOutput = new StringBuilder();
             long startTime = System.currentTimeMillis();
-            while (System.currentTimeMillis() - startTime < 5000) { // timeout de 5 segundos
+            boolean ready = false;
+            boolean modelLoaded = false;
+            
+            while (System.currentTimeMillis() - startTime < 30000) { // 30 segundos timeout (aumentado)
                 if (reader.ready()) {
                     String line = reader.readLine();
                     if (line != null) {
+                        System.out.println("PYTHON OUTPUT: " + line);
                         initOutput.append(line).append("\n");
-                        if (line.contains("ready") || line.contains("Ready")) {
+                        
+                        // Verificar diferentes mensajes de ready
+                        if (line.contains("ready") || line.contains("Ready") || 
+                            line.contains("READY") || line.contains("✅")) {
+                            ready = true;
+                        }
+                        if (line.contains("Modelo cargado") || line.contains("Modelo encontrado")) {
+                            modelLoaded = true;
+                        }
+                        if (line.contains("ERROR") || line.contains("Error") || line.contains("❌")) {
+                            System.err.println("❌ Python reportó error: " + line);
+                            break;
+                        }
+                        
+                        // Considerar listo si tanto el modelo está cargado como el proceso está ready
+                        if (ready && modelLoaded) {
                             break;
                         }
                     }
                 }
                 TimeUnit.MILLISECONDS.sleep(100);
+                
+                // Verificar si el proceso sigue vivo
+                if (!pythonProcess.isAlive()) {
+                    System.err.println("❌ Proceso Python murió durante inicialización");
+                    break;
+                }
             }
             
-            System.out.println("Salida inicial Python: " + initOutput.toString());
+            if (!pythonProcess.isAlive()) {
+                int exitCode = pythonProcess.exitValue();
+                System.err.println("❌ Proceso Python terminó con código: " + exitCode);
+                throw new RuntimeException("Proceso Python terminó durante inicialización. Código: " + exitCode);
+            }
+            
+            if (!ready || !modelLoaded) {
+                System.err.println("❌ Timeout en inicialización Python. Output completo:");
+                System.err.println(initOutput.toString());
+                throw new RuntimeException("Timeout inicializando proceso Python. ¿Modelo cargado correctamente?");
+            }
+            
             initialized = true;
+            reinitializationAttempted = false;
             System.out.println("✅ Proceso Python inicializado correctamente");
             
         } catch (Exception e) {
             System.err.println("❌ Error inicializando proceso Python: " + e.getMessage());
-            throw new RuntimeException("Error inicializando proceso Python", e);
+            initialized = false;
+            // No relanzar la excepción para permitir reintentos posteriores
         }
     }
 
@@ -81,16 +119,24 @@ public class AIStoryService {
 
     private String sendCommand(String commandType, String data, String configJson) {
         try {
-            if (!initialized || pythonProcess == null) {
-                initialize();
+            if (!initialized || pythonProcess == null || !pythonProcess.isAlive()) {
+                System.out.println("⚠️  Proceso Python no activo, intentando reinicializar...");
+                // Solo intentar reinicializar una vez por comando
+                if (!reinitializationAttempted) {
+                    reinitializationAttempted = true;
+                    initialize();
+                } else {
+                    throw new RuntimeException("Reinicialización ya intentada previamente");
+                }
             }
             
             if (!pythonProcess.isAlive()) {
-                throw new RuntimeException("El proceso Python no está activo");
+                String lastOutput = getLastPythonOutput();
+                throw new RuntimeException("El proceso Python no está activo. Output previo: " + lastOutput);
             }
             
             String command = String.format("%s|%s|%s\n", commandType, data, configJson);
-            System.out.println("Enviando comando: " + command.replace("\n", "\\n"));
+            System.out.println("📤 Enviando comando: " + command.replace("\n", "\\n"));
             
             writer.write(command);
             writer.flush();
@@ -99,13 +145,16 @@ public class AIStoryService {
             String line;
             long startTime = System.currentTimeMillis();
             boolean responseStarted = false;
+            boolean endResponseFound = false;
             
             // Leer respuesta con timeout
-            while (System.currentTimeMillis() - startTime < 30000) { // 30 segundos timeout
+            while (System.currentTimeMillis() - startTime < 45000) { // 45 segundos timeout (aumentado)
                 if (reader.ready()) {
                     line = reader.readLine();
                     if (line != null) {
+                        System.out.println("📥 Python response: " + line);
                         if (line.equals("END_RESPONSE")) {
+                            endResponseFound = true;
                             break;
                         }
                         response.append(line).append("\n");
@@ -113,8 +162,18 @@ public class AIStoryService {
                     }
                 } else if (responseStarted) {
                     // Pequeña pausa para evitar CPU alto
-                    TimeUnit.MILLISECONDS.sleep(100);
+                    TimeUnit.MILLISECONDS.sleep(50);
                 }
+                
+                // Verificar si el proceso murió durante la respuesta
+                if (!pythonProcess.isAlive()) {
+                    System.err.println("❌ Proceso Python murió durante la respuesta");
+                    break;
+                }
+            }
+            
+            if (!endResponseFound) {
+                System.err.println("⚠️  Timeout o END_RESPONSE no recibido");
             }
             
             String result = response.toString().trim();
@@ -125,6 +184,9 @@ public class AIStoryService {
             return result;
             
         } catch (Exception e) {
+            // Marcar como no inicializado para reintentos futuros
+            initialized = false;
+            reinitializationAttempted = false;
             throw new RuntimeException("Error enviando comando a Python: " + e.getMessage(), e);
         }
     }
@@ -132,28 +194,75 @@ public class AIStoryService {
     @PreDestroy
     public void shutdown() {
         try {
-            if (pythonProcess != null && pythonProcess.isAlive()) {
-                // Enviar comando de salida limpia
-                try {
-                    writer.write("EXIT\n");
-                    writer.flush();
-                    TimeUnit.SECONDS.sleep(1);
-                } catch (Exception e) {
-                    // Ignorar errores en shutdown
+            if (pythonProcess != null) {
+                // Enviar comando de salida limpia si está vivo
+                if (pythonProcess.isAlive()) {
+                    try {
+                        if (writer != null) {
+                            writer.write("EXIT\n");
+                            writer.flush();
+                            System.out.println("📤 Enviando comando EXIT al proceso Python");
+                            TimeUnit.SECONDS.sleep(2); // Dar tiempo para shutdown limpio
+                        }
+                    } catch (Exception e) {
+                        System.err.println("⚠️  Error enviando comando EXIT: " + e.getMessage());
+                    }
                 }
                 
-                pythonProcess.destroy();
+                // Destruir el proceso
                 if (pythonProcess.isAlive()) {
-                    pythonProcess.destroyForcibly();
+                    pythonProcess.destroy();
+                    TimeUnit.SECONDS.sleep(1);
+                    
+                    if (pythonProcess.isAlive()) {
+                        pythonProcess.destroyForcibly();
+                        System.out.println("⚠️  Proceso Python forzado a terminar");
+                    }
                 }
+                
                 System.out.println("✅ Proceso Python terminado");
             }
         } catch (Exception e) {
             System.err.println("❌ Error terminando proceso Python: " + e.getMessage());
+        } finally {
+            // Cerrar recursos
+            try {
+                if (reader != null) reader.close();
+                if (writer != null) writer.close();
+            } catch (IOException e) {
+                System.err.println("⚠️  Error cerrando streams: " + e.getMessage());
+            }
+        }
+    }
+    
+    private String getLastPythonOutput() {
+        try {
+            StringBuilder output = new StringBuilder();
+            // Leer todo lo que haya disponible
+            while (reader.ready()) {
+                String line = reader.readLine();
+                if (line != null) {
+                    output.append(line).append("\n");
+                }
+            }
+            return output.toString().isEmpty() ? "No hay output disponible" : output.toString();
+        } catch (Exception e) {
+            return "Error leyendo output: " + e.getMessage();
         }
     }
     
     public boolean isInitialized() {
         return initialized && pythonProcess != null && pythonProcess.isAlive();
+    }
+    
+    public String getPythonStatus() {
+        if (pythonProcess == null) {
+            return "No inicializado";
+        }
+        if (pythonProcess.isAlive()) {
+            return "Activo";
+        } else {
+            return "Inactivo (exit code: " + pythonProcess.exitValue() + ")";
+        }
     }
 }
