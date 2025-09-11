@@ -70,7 +70,7 @@ class StoryGenerator:
             # Configuration optimized for story generation
             self.llm = Llama(
                 model_path=self.model_path,
-                n_ctx=16384,        # Large context window for stories
+                n_ctx=17200,        # Large context window for stories
                 n_gpu_layers=99,  
                 n_batch=512,       
                 n_threads=8,       
@@ -149,7 +149,9 @@ class StoryGenerator:
                     - Write in a style fitting for {config.genre}
                     - Introduce an engaging conflict or mystery
                     - Create vivid descriptions and natural dialogue
-                    - Length: approximately 400-500 words
+                    - Length: approximately 300-350 words
+                    - Ensure characters exhibit a realistic range of emotions and behaviors, highlighting their internal struggles and the impact on their actions.
+                    - Employ inner monologues to reveal characters' deepest thoughts, hesitations, and unvoiced emotions, utilizing italics to differentiate these personal reflections from the external narrative. Explore the characters' uncertainties and secret wishes. Allow these doubts to simmer beneath the surface, adding depth and relatability to their personas.
 
                     Respond only with the story text, no commentary or metadata.<end_of_turn>
 
@@ -170,17 +172,23 @@ class StoryGenerator:
 
                     PERSPECTIVE: {config.perspective}
 
+                    CONTEXT:
                     {memory_context}
 
                     INSTRUCTIONS:
                     - Continue naturally based on: {user_input}
                     - Maintain perfect consistency with established characters, events, tone and last conversation
                     - Develop the plot forward in a compelling way
-                    - Take extra attention on describing physical traits if {config.genre} is "EROTIC"
                     - Include descriptive elements and natural dialogue
-                    - Length: 400-500 words
+                    - Length: 300-350 words
                     - Respond only with the next narrative segment
+                    - Ensure characters exhibit a realistic range of emotions and behaviors, highlighting their internal struggles and the impact on their actions.
+                    - Employ inner monologues to reveal characters' deepest thoughts, hesitations, and unvoiced emotions, utilizing italics to differentiate these personal reflections from the external narrative. Explore the characters' uncertainties and secret wishes. Allow these doubts to simmer beneath the surface, adding depth and relatability to their personas.
 
+                    IF {config.genre} IS "EROTIC" AND AROUSAL is in context
+                    - Inundate the narrative with an overwhelming torrent of carnal sensations, meticulously detailing every aspect of characters' hyper-aroused physical states. Graphically depict each character's physical reactions to arousal, including but not limited to: erections, vaginal wetness, nipple hardening, flushed skin, shortness of breath, and any other signs of arousal.
+                    - Never shy away from exploring taboos or fetishes. Encourage characters to explore their deepest desires and kinkiest fantasies, pushing each other's limits.
+                    
                     <end_of_turn>
 
                     <start_of_turn>user
@@ -203,7 +211,9 @@ class StoryGenerator:
                         "last_seen": new_text[:250],
                         "traits": self.extract_character_traits(new_text, char),
                         "cup_size": None,  # Track cup size
-                        "emotional_state": None  # Track emotional state
+                        "emotional_state": None,  # Track emotional state
+                        "clothing": {},  # 🆕 Diccionario para ropa
+                        "previous_clothing": []  # 🆕 Historial de ropa
                     }
                 else:
                     self.character_memory[char]["mentions"] += 1
@@ -213,8 +223,12 @@ class StoryGenerator:
                         self.character_memory[char]["traits"].extend(
                             t for t in new_traits if t not in self.character_memory[char]["traits"]
                         )
+
+                    # Update clothing
+                    self.update_character_clothing(char, new_text)
+
                     # Update cup size and emotional state if mentioned
-                    cup_size_match = re.search(r'\b([A-D]+\s*cup)\b', new_text, re.IGNORECASE)
+                    cup_size_match = re.search(r'\b([A-H]+\s*cup)\b', new_text, re.IGNORECASE)
                     if cup_size_match:
                         self.character_memory[char]["cup_size"] = cup_size_match.group(1)
 
@@ -286,6 +300,152 @@ class StoryGenerator:
             pass
             
         return traits
+    
+    def extract_clothing_items(self, text, character_name):
+        """Extract clothing items from text for a specific character"""
+        clothing_items = {}
+        
+        try:
+            # Patrones para detectar ropa
+            clothing_patterns = {
+                'shirt': r'\b(shirt|blouse|t-shirt|sweater|jersey|top)\b',
+                'pants': r'\b(pants|trousers|jeans|leggings|slacks)\b',
+                'dress': r'\b(dress|gown|robe|frock)\b',
+                'bra' : r'\b(bra|brassiere|bandeau)\b',
+                'panties' : r'\b(panties|briefs|lingerie|undergarment|undies)\b'
+            }
+            
+            # Buscar si el personaje está asociado con prendas
+            for clothing_type, pattern in clothing_patterns.items():
+                # Buscar patrones como "John's hat" o "hat that John wore"
+                matches = re.findall(
+                    rf'\b({character_name}\'s\s+{pattern}|{pattern}.+{character_name})\b', 
+                    text, 
+                    re.IGNORECASE
+                )
+                if matches:
+                    clothing_items[clothing_type] = matches[0]
+                    
+        except Exception as e:
+            print(f"❌ Clothing extraction error: {e}", file=sys.stderr)
+        
+        return clothing_items
+    
+    def update_character_clothing(self, character_name, text):
+        """Update clothing state for a character"""
+        try:
+            # Extraer prendas nuevas mencionadas
+            new_clothing = self.extract_clothing_items(text, character_name)
+            
+            # Detectar acciones de QUITARSE ropa (versión mejorada)
+            removal_actions = re.findall(
+                rf'{character_name}\s+.+?\b(took off|removed|ripped|dropped|took out|snapped out of)\s+(?:his|her)?\s*(\w+\s+)?(shirt|dress|pants|sweater|bra|panties)\b',
+                text, 
+                re.IGNORECASE
+            )
+            
+            # Detectar acciones de PONERSE ropa (versión mejorada)
+            wearing_actions = re.findall(
+                rf'{character_name}\s+.+?\b(put on|wore|changed into|wearing|slipped into)\s+(?:his|her)?\s*(\w+\s+)?(shirt|dress|pants|sweater|bra|panties)\b',
+                text, 
+                re.IGNORECASE
+            )
+
+            clothing_pattern = r'\b(shirt|pants|dress|sweater|panties|bra)\b'
+            # PATRÓN PARA ACCIONES CON PRENDAS (roturas, ajustes, etc.)
+            clothing_actions = re.findall(
+                rf'''
+                (?:{character_name}\'s\s+(\w+\s+)?({clothing_pattern}))  # John's watch / Mary's blue dress
+                \s+                                                      # Espacio
+                (snapped|tore|ripped|broke|fastened|adjusted|tightened|loosened|opened|closed)
+                \b                                                       # Límite de palabra
+                ''',
+                text, 
+                re.IGNORECASE | re.VERBOSE
+            )
+            
+            # Procesar acciones de quitar ropa
+            for action, adjective, item in removal_actions:
+                item_type = self.map_clothing_type(item)
+                full_item_description = f"{adjective or ''}{item}".strip()
+                
+                if item_type in self.character_memory[character_name]["clothing"]:
+                    # Guardar en historial antes de remover
+                    removed_item = self.character_memory[character_name]["clothing"].pop(item_type)
+                    self.character_memory[character_name]["previous_clothing"].append({
+                        "item": removed_item,
+                        "action": action.replace(' ', '_'),
+                        "context": text[:100] + "..."
+                    })
+                    print(f"👕 {character_name} {action} {full_item_description}", file=sys.stderr)
+            
+            # Procesar acciones de poner ropa
+            for action, adjective, item in wearing_actions:
+                item_type = self.map_clothing_type(item)
+                full_item_description = f"{adjective or ''}{item}".strip()
+                
+                # Usar la descripción de la acción o la extraída
+                clothing_description = new_clothing.get(item_type, full_item_description)
+                
+                self.character_memory[character_name]["clothing"][item_type] = clothing_description
+                self.character_memory[character_name]["previous_clothing"].append({
+                    "item": clothing_description,
+                    "action": action.replace(' ', '_'),
+                    "context": text[:100] + "..."
+                })
+                print(f"👕 {character_name} {action} {clothing_description}", file=sys.stderr)
+            
+            # 🆕 Procesar acciones con prendas (roturas, ajustes)
+            for adjective, item, action in clothing_actions:
+                item_type = self.map_clothing_type(item)
+                full_item_description = f"{adjective or ''}{item}".strip()
+                
+                if item_type in self.character_memory[character_name]["clothing"]:
+                    # Actualizar el estado de la prenda
+                    current_item = self.character_memory[character_name]["clothing"][item_type]
+                    self.character_memory[character_name]["previous_clothing"].append({
+                        "item": current_item,
+                        "action": action,
+                        "context": text[:100] + "...",
+                        "modifier": action  # 🆕 Indicar qué le pasó a la prenda
+                    })
+                    print(f"👕 {character_name}'s {full_item_description} {action}", file=sys.stderr)
+            
+            # Agregar nuevas prendas detectadas (sin acción explícita)
+            for clothing_type, item in new_clothing.items():
+                if clothing_type not in self.character_memory[character_name]["clothing"]:
+                    self.character_memory[character_name]["clothing"][clothing_type] = item
+                    print(f"👕 {character_name} has {item}", file=sys.stderr)
+                
+        except Exception as e:
+            print(f"❌ Clothing update error for {character_name}: {e}", file=sys.stderr)
+
+    def map_clothing_type(self, item):
+        """Map specific items to general clothing types"""
+        clothing_map = {
+            
+            # Shirts and tops
+            'shirt': 'shirt', 'blouse': 'shirt', 't-shirt': 'shirt', 
+            'sweater': 'shirt', 'jersey': 'shirt', 'top': 'shirt',
+            'sweatshirt': 'shirt', 'blouse': 'shirt',
+            
+            # Pants and bottoms
+            'pants': 'pants', 'trousers': 'pants', 'jeans': 'pants', 
+            'leggings': 'pants', 'slacks': 'pants', 'breeches': 'pants',
+            'shorts': 'pants',
+            
+            # Dresses and gowns
+            'dress': 'dress', 'gown': 'dress', 'robe': 'dress', 
+            'frock': 'dress', 'garment': 'dress', 'outfit': 'dress',
+            
+            # Panties
+            'panties': 'panties', 'briefs':'panties', 'undies':'panties',
+            'lingerie': 'panties', 'undergarment':'panties',
+
+            # Bras
+            'bra':'bra', 'bandeau':'bra', 'brassiere':'bra',
+        }
+        return clothing_map.get(item.lower(), 'accessories')
     
     def update_story_summary(self, new_text):
         """Update the overall story summary"""
