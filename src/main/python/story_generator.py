@@ -115,7 +115,7 @@ class StoryGenerator:
         try:
             if not is_continuation:
                 return f"""<start_of_turn>system
-                Write the FIRST CHAPTER of a {config.get('genre', 'fantasy')} story with:
+                Write the FIRST CHAPTER of a {config.perspective} story with:
 
                 INITIAL SITUATION: {config.get('situation', 'an exciting adventure')}
 
@@ -247,7 +247,7 @@ class StoryGenerator:
                 self.clear_memory()
                 prompt = self.create_story_prompt(config, data, False)
                 print(f"📋 Prompt de generación creado ({len(prompt)} caracteres)", file=sys.stderr)
-                response = self.generate_text(prompt, max_tokens=450)
+                response = self.generate_text(prompt, max_tokens=500)
                 # Actualizar memoria con la nueva historia
                 self.update_story_memory(response)
                 return response
@@ -255,7 +255,7 @@ class StoryGenerator:
             elif command_type == "CONTINUE":
                 prompt = self.create_story_prompt(config, data, True)
                 print(f"📋 Prompt de continuación creado ({len(prompt)} caracteres)", file=sys.stderr)
-                response = self.generate_text(prompt, max_tokens=300)
+                response = self.generate_text(prompt, max_tokens=500)
                 # Actualizar memoria con la continuación
                 self.update_story_memory(response)
                 return response

@@ -237,7 +237,7 @@
                             <div class="col-md-6">
                                 <input type="text" class="form-control" id="chatInput" 
                                     placeholder="Escribe tu mensaje o instrucciones para la historia..." 
-                                    onkeypress="handleKeyPress(event)">
+                                    onkeypress="handleKeyPress(event)" required>
                             </div>
                             <div class="col-md-2">
                                 <button class="btn btn-primary w-100" id="sendButton" onclick="sendMessage()">
@@ -541,9 +541,9 @@ Ahora puedes comenzar a escribir para iniciar la historia.`);
                 background: document.getElementById('background').value,
                 genre: document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text,
                 perspective: document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text,
-                situation: document.getElementById('firstCharacter').value + ' y ' + 
+                situation: document.getElementById('firstCharacter').value + ' and ' + 
                           document.getElementById('secondCharacter').value + 
-                          ' en ' + document.getElementById('background').value
+                          ' in ' + document.getElementById('background').value
             };
         }
 

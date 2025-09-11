@@ -47,24 +47,34 @@ public class AIStoryService {
             boolean ready = false;
             boolean modelLoaded = false;
             
-            while (System.currentTimeMillis() - startTime < 30000) { // 30 segundos timeout (aumentado)
+            while (System.currentTimeMillis() - startTime < 120000) {
                 if (reader.ready()) {
                     String line = reader.readLine();
                     if (line != null) {
                         System.out.println("PYTHON OUTPUT: " + line);
                         initOutput.append(line).append("\n");
                         
-                        // Verificar diferentes mensajes de ready
-                        if (line.contains("ready") || line.contains("Ready") || 
-                            line.contains("READY") || line.contains("✅")) {
+                        if (line.contains("READY") || line.contains("✅ READY") || 
+                            line.contains("✅") && line.contains("StoryGenerator initialized")) {
                             ready = true;
+                            System.out.println("✅ Detected ready signal: " + line);
                         }
-                        if (line.contains("Modelo cargado") || line.contains("Modelo encontrado")) {
+
+                        if (line.contains("Model loaded") || line.contains("Model loaded in") || 
+                            line.contains("Test passed") || line.contains("✅ Model verified")) {
                             modelLoaded = true;
+                            System.out.println("✅ Detected model loaded signal: " + line);
                         }
                         if (line.contains("ERROR") || line.contains("Error") || line.contains("❌")) {
                             System.err.println("❌ Python reportó error: " + line);
                             break;
+                        }
+
+                        // Y también verifica específicamente:
+                        if (line.contains("✅ READY - Waiting for commands...")) {
+                            ready = true;
+                            modelLoaded = true;
+                            System.out.println("✅ Full initialization complete: " + line);
                         }
                         
                         // Considerar listo si tanto el modelo está cargado como el proceso está ready
@@ -148,7 +158,7 @@ public class AIStoryService {
             boolean endResponseFound = false;
             
             // Leer respuesta con timeout
-            while (System.currentTimeMillis() - startTime < 45000) { // 45 segundos timeout (aumentado)
+            while (System.currentTimeMillis() - startTime < 180000) {
                 if (reader.ready()) {
                     line = reader.readLine();
                     if (line != null) {
