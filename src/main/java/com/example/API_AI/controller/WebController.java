@@ -36,6 +36,14 @@ public class WebController {
         return "web/home";
     }
 
+    @GetMapping("/chat")
+    public String roleplay(Model model) {
+        model.addAttribute("title", "API AI - Chat");
+        model.addAttribute("genres", genreService.getAll());
+        model.addAttribute("perspectives", perspectiveService.getAll());
+        return "web/roleplay";
+    }
+
     @PostMapping("/saveConfig")
     @ResponseBody // Add this annotation
     public ResponseEntity<?> saveConfig(@RequestBody StoryConfigRequest request) { // Change to @RequestBody

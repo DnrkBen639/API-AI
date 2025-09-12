@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API AI - Sistema de Roleplay</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0d6efd;
+            --bg-secondary: #6c757d;
+            --bg-success: #198754;
+            --bg-warning: #ffc107;
+            --bg-danger: #dc3545;
+            --bg-dark: #212529;
+            --bg-light: #f8f9fa;
+            --text-dark: #212529;
+            --text-light: #f8f9fa;
+            --card-bg: #ffffff;
+            --input-bg: #ffffff;
+            --border-color: #dee2e6;
+        }
+
+        .dark-mode {
+            --bg-primary: #0a58ca;
+            --bg-secondary: #5a6268;
+            --bg-success: #146c43;
+            --bg-warning: #d39e00;
+            --bg-danger: #bb2d3b;
+            --bg-dark: #121212;
+            --bg-light: #2d2d2d;
+            --text-dark: #e9ecef;
+            --text-light: #e9ecef;
+            --card-bg: #1e1e1e;
+            --input-bg: #2d2d2d;
+            --border-color: #495057;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            transition: all 0.3s ease;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar, footer {
+            background-color: var(--bg-primary) !important;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-color: var(--border-color);
+            color: var(--text-dark);
+        }
+
+        .form-control, .form-select {
+            background-color: var(--input-bg);
+            color: var(--text-dark);
+            border-color: var(--border-color);
+        }
+
+        .form-control:focus, .form-select:focus {
+            background-color: var(--input-bg);
+            color: var(--text-dark);
+            border-color: var(--bg-primary);
+            box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        }
+
+        .chat-box {
+            height: 400px;
+            overflow-y: auto;
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .message {
+            padding: 10px 15px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+            max-width: 70%;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background-color: var(--bg-primary);
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .ai-message {
+            background-color: var(--bg-secondary);
+            color: white;
+            margin-right: auto;
+        }
+
+        .system-message {
+            background-color: var(--bg-warning);
+            color: var(--text-dark);
+            margin: 10px auto;
+            text-align: center;
+            max-width: 90%;
+            font-style: italic;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .config-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 1050;
+            width: 90%;
+            max-width: 600px;
+            border: 1px solid var(--border-color);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1040;
+        }
+
+        .btn-outline-danger:hover {
+            background-color: var(--bg-danger);
+            border-color: var(--bg-danger);
+            color: white;
+        }
+
+        .loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .character-badge {
+            font-size: 0.8em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 5px;
+        }
+
+        .clothing-status {
+            background-color: var(--bg-success);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin-top: 5px;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .chat-box {
+                height: 300px;
+            }
+            
+            .config-modal {
+                width: 95%;
+                padding: 20px;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/web/">
+                <i class="fas fa-theater-masks"></i> Roleplay AI System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <div class="navbar-nav ms-auto">
+                    <a class="nav-link" href="/web/">
+                        <i class="fas fa-home"></i> Inicio
+                    </a>
+                    <a class="nav-link active" href="/web/roleplay">
+                        <i class="fas fa-comments"></i> Roleplay
+                    </a>
+                    <a class="nav-link" href="/web/stories">
+                        <i class="fas fa-book"></i> Historias
+                    </a>
+                    <a class="nav-link" href="/hello">
+                        <i class="fas fa-code"></i> API
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container flex-grow-1 py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <!-- Header -->
+                <div class="text-center mb-5">
+                    <h1 class="display-5 fw-bold text-primary">
+                        <i class="fas fa-theater-masks"></i> Roleplay AI
+                    </h1>
+                    <p class="lead text-muted">Sistema avanzado de roleplay con seguimiento de personajes y vestimenta</p>
+                </div>
+
+                <!-- Status Indicator -->
+                <div class="alert alert-info mb-4" id="statusIndicator">
+                    <i class="fas fa-circle-notch fa-spin"></i> Conectando con el servicio de Roleplay AI...
+                </div>
+
+                <!-- Session Info -->
+                <div class="card shadow-sm mb-4" id="sessionInfo" style="display: none;">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-info-circle"></i> Información de Sesión</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <small class="text-muted">Sesión ID:</small>
+                                <span id="currentSessionId" class="fw-bold"></span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted">Turno:</small>
+                                <span id="currentTurn" class="fw-bold">0</span>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-sm btn-outline-info" onclick="showSessionDetails()">
+                                    <i class="fas fa-eye"></i> Detalles
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Box -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-comments"></i> Conversación de Roleplay</h5>
+                        <div>
+                            <button class="btn btn-sm btn-light me-2" onclick="saveConversation()">
+                                <i class="fas fa-download"></i> Guardar
+                            </button>
+                            <button class="btn btn-sm btn-outline-light" onclick="toggleClothingPanel()">
+                                <i class="fas fa-tshirt"></i> Ropa
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="chat-box" id="chatBox">
+                            <div class="message ai-message">
+                                <strong>AI:</strong>
+                                ¡Hola! Soy tu asistente de roleplay. Primero, configura los personajes y el escenario usando el botón "Config".
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clothing Panel (Collapsible) -->
+                <div class="card shadow-sm mb-4" id="clothingPanel" style="display: none;">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-tshirt"></i> Seguimiento de Vestimenta</h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="clothingStatus">
+                            <p class="text-muted">El sistema de seguimiento de vestimenta se activará durante la conversación...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Section -->
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-6">
+                                <input type="text" class="form-control" id="chatInput" 
+                                    placeholder="Escribe tu diálogo o acción..." 
+                                    onkeypress="handleKeyPress(event)" required>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-primary w-100" id="sendButton" onclick="sendMessage()">
+                                    <i class="fas fa-paper-plane"></i> Enviar
+                                </button>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-primary w-100" onclick="toggleConfig()">
+                                    <i class="fas fa-cog"></i> Config
+                                </button>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-outline-danger w-100" onclick="resetRoleplay()" id="resetButton">
+                                    <i class="fas fa-trash"></i> Reset
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration Modal -->
+    <div class="overlay" id="overlay" onclick="closeConfig()"></div>
+    <div class="config-modal" id="configModal">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-cog"></i> Configuración de Roleplay</h5>
+                <button type="button" class="btn-close btn-close-white float-end" onclick="closeConfig()"></button>
+            </div>
+            <div class="card-body">
+                <form id="configForm">
+                    <div class="mb-3">
+                        <label class="form-label">Tu Personaje</label>
+                        <input type="text" class="form-control" id="userCharacter"
+                               placeholder="Ej: Guerrero valiente" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Personaje AI</label>
+                        <input type="text" class="form-control" id="aiCharacter"
+                               placeholder="Ej: Mago sabio" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Escenario</label>
+                        <textarea class="form-control" rows="3" id="scenario"
+                                  placeholder="Ej: Una taberna medieval en un pueblo fronterizo" required></textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Género</label>
+                            <select class="form-select" id="genre" required>
+                                <option value="">Seleccionar género...</option>
+                                <option value="fantasy">Fantasía</option>
+                                <option value="sci-fi">Ciencia Ficción</option>
+                                <option value="romance">Romance</option>
+                                <option value="adventure">Aventura</option>
+                                <option value="mystery">Misterio</option>
+                                <option value="horror">Horror</option>
+                                <option value="realistic">Realista</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Perspectiva</label>
+                            <select class="form-select" id="perspective" required>
+                                <option value="">Seleccionar perspectiva...</option>
+                                <option value="first person">Primera Persona</option>
+                                <option value="second person">Segunda Persona</option>
+                                <option value="third person">Tercera Persona</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Relación entre Personajes</label>
+                        <input type="text" class="form-control" id="relationship"
+                               placeholder="Ej: Compañeros de aventura, extraños que se conocen, etc.">
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="enableClothingTracking" checked>
+                        <label class="form-check-label" for="enableClothingTracking">
+                            Habilitar seguimiento de vestimenta
+                        </label>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-success" onclick="saveConfig()">
+                            <i class="fas fa-save"></i> Guardar Configuración
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="closeConfig()">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Theme Toggle Button -->
+    <button class="btn btn-primary theme-toggle" onclick="toggleTheme()">
+        <i class="fas fa-moon"></i>
+    </button>
+
+    <!-- Footer -->
+    <footer class="mt-auto">
+        <div class="container">
+            <p class="text-center mb-0 py-3">
+                &copy; 2024 Roleplay AI System. Desarrollado con Spring Boot y Thymeleaf
+            </p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables globales para roleplay
+        let currentSessionId = null;
+        let currentTurn = 0;
+        let fullConversation = '';
+        let isAIReady = false;
+        let clothingTrackingEnabled = true;
+
+        // Theme management
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const icon = document.querySelector('.theme-toggle i');
+            if (document.body.classList.contains('dark-mode')) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            const icon = document.querySelector('.theme-toggle i');
+            icon.classList.remove('fa-moon');
+            icon.classList.add('fa-sun');
+        }
+
+        // Configuration modal functions
+        function toggleConfig() {
+            const modal = document.getElementById('configModal');
+            const overlay = document.getElementById('overlay');
+            
+            if (modal.style.display === 'block') {
+                modal.style.display = 'none';
+                overlay.style.display = 'none';
+            } else {
+                modal.style.display = 'block';
+                overlay.style.display = 'block';
+            }
+        }
+
+        function closeConfig() {
+            document.getElementById('configModal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+        }
+
+        function toggleClothingPanel() {
+            const panel = document.getElementById('clothingPanel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function showSessionDetails() {
+            alert(`Detalles de la sesión:\nID: ${currentSessionId}\nTurnos: ${currentTurn}\nPersonajes configurados`);
+        }
+
+        function saveConfig() {
+            const userCharacter = document.getElementById('userCharacter').value;
+            const aiCharacter = document.getElementById('aiCharacter').value;
+            const scenario = document.getElementById('scenario').value;
+            const genre = document.getElementById('genre').value;
+            const perspective = document.getElementById('perspective').value;
+            const relationship = document.getElementById('relationship').value;
+            clothingTrackingEnabled = document.getElementById('enableClothingTracking').checked;
+            
+            // Validación básica
+            if (!userCharacter || !aiCharacter || !scenario || !genre || !perspective) {
+                alert('Por favor, completa todos los campos requeridos');
+                return;
+            }
+            
+            // Crear objeto de configuración para roleplay
+            const configData = {
+                userCharacter: userCharacter,
+                aiCharacter: aiCharacter,
+                scenario: scenario,
+                genre: genre,
+                perspective: perspective,
+                relationship: relationship || "strangers meeting",
+                enableClothing: clothingTrackingEnabled
+            };
+            
+            // Guardar en localStorage
+            localStorage.setItem('roleplayConfig', JSON.stringify(configData));
+
+            showLoading(true);
+
+            // Enviar configuración al servidor
+            fetch('/api/roleplay/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    config: JSON.stringify(configData),
+                    userInput: `Iniciando roleplay con ${userCharacter} y ${aiCharacter} en ${scenario}`
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`Error ${response.status}: ${response.statusText}. Response: ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    currentSessionId = data.sessionId;
+                    currentTurn = data.turn || 1;
+                    
+                    // Actualizar UI
+                    document.getElementById('currentSessionId').textContent = currentSessionId;
+                    document.getElementById('currentTurn').textContent = currentTurn;
+                    document.getElementById('sessionInfo').style.display = 'block';
+                    
+                    // Mostrar mensaje de éxito
+                    addMessage('system', '✅ Configuración de roleplay guardada correctamente');
+                    
+                    const genreText = document.getElementById('genre').options[document.getElementById('genre').selectedIndex].text;
+                    const perspectiveText = document.getElementById('perspective').options[document.getElementById('perspective').selectedIndex].text;
+                    
+                    addMessage('ai', `¡Perfecto! Configuración guardada:
+• Tu personaje: ${userCharacter}
+• Personaje AI: ${aiCharacter}
+• Escenario: ${scenario}
+• Género: ${genreText}
+• Perspectiva: ${perspectiveText}
+• Relación: ${relationship || 'Por definir'}
+
+¡Ahora puedes comenzar el roleplay! Escribe tu primer diálogo o acción.`);
+
+                    closeConfig();
+                } else {
+                    throw new Error(data.response || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addMessage('ai', '❌ Error al guardar configuración: ' + error.message);
+                updateStatus('❌ Error de conexión', 'danger');
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        }
+
+        // Chat functionality
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            addMessage('user', message);
+            input.value = '';
+            
+            if (!currentSessionId) {
+                const config = getCurrentConfig();
+                if (!config.userCharacter || !config.aiCharacter) {
+                    addMessage('ai', '⚠️ Primero configura los personajes y escenario usando el botón "Config".');
+                    return;
+                }
+                startNewRoleplay(config, message);
+            } else {
+                continueRoleplay(message);
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function addMessage(sender, text) {
+            const chatBox = document.getElementById('chatBox');
+            const messageDiv = document.createElement('div');
+            
+            if (sender === 'system') {
+                messageDiv.className = 'message system-message';
+                messageDiv.innerHTML = `<strong><i class="fas fa-info-circle"></i> Sistema:</strong> ${text}`;
+            } else {
+                messageDiv.className = `message ${sender}-message`;
+                const characterName = sender === 'user' ? 
+                    (getCurrentConfig().userCharacter || 'Tú') : 
+                    (getCurrentConfig().aiCharacter || 'AI');
+                messageDiv.innerHTML = `<strong>${characterName}:</strong> ${text}`;
+            }
+            
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function getCurrentConfig() {
+            const saved = localStorage.getItem('roleplayConfig');
+            if (saved) {
+                return JSON.parse(saved);
+            }
+            return {
+                userCharacter: document.getElementById('userCharacter').value,
+                aiCharacter: document.getElementById('aiCharacter').value,
+                scenario: document.getElementById('scenario').value,
+                genre: document.getElementById('genre').value,
+                perspective: document.getElementById('perspective').value,
+                relationship: document.getElementById('relationship').value
+            };
+        }
+
+        function startNewRoleplay(config, message) {
+            showLoading(true);
+            
+            fetch('/api/roleplay/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    config: JSON.stringify(config),
+                    userInput: message
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error del servidor: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    fullConversation = data.response;
+                    currentSessionId = data.sessionId;
+                    currentTurn = data.turn || 1;
+                    
+                    // Actualizar UI
+                    document.getElementById('currentSessionId').textContent = currentSessionId;
+                    document.getElementById('currentTurn').textContent = currentTurn;
+                    document.getElementById('sessionInfo').style.display = 'block';
+                    
+                    addMessage('ai', data.response);
+                    updateStatus('✅ Conectado - Roleplay activo', 'success');
+                } else {
+                    throw new Error(data.response || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addMessage('ai', '❌ Error al iniciar el roleplay: ' + error.message);
+                updateStatus('❌ Error de conexión', 'danger');
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        }
+
+        function continueRoleplay(message) {
+            showLoading(true);
+            
+            fetch('/api/roleplay/continue', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sessionId: currentSessionId,
+                    message: message
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error del servidor: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    fullConversation = data.currentConversation;
+                    currentTurn = data.turn;
+                    
+                    // Actualizar UI
+                    document.getElementById('currentTurn').textContent = currentTurn;
+                    
+                    addMessage('ai', data.response);
+                    
+                    // Actualizar panel de vestimenta si está habilitado
+                    if (clothingTrackingEnabled) {
+                        updateClothingPanel();
+                    }
+                } else {
+                    throw new Error(data.response || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                addMessage('ai', '❌ Error al continuar el roleplay: ' + error.message);
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        }
+
+        function resetRoleplay() {
+            if (!currentSessionId) {
+                alert('No hay roleplay activo para resetear');
+                return;
+            }
+
+            if (!confirm('¿Estás seguro de que quieres resetear el roleplay? Se perderá toda la conversación.')) {
+                return;
+            }
+
+            showLoading(true);
+            
+            fetch(`/api/roleplay/session/${currentSessionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error del servidor: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success') {
+                    // Limpiar la interfaz
+                    const chatBox = document.getElementById('chatBox');
+                    chatBox.innerHTML = `
+                        <div class="message ai-message">
+                            <strong>AI:</strong> ¡Hola! Soy tu asistente de roleplay. 
+                            Primero, configura los personajes y el escenario usando el botón "Config".
+                        </div>
+                    `;
+                    
+                    // Ocultar panels
+                    document.getElementById('sessionInfo').style.display = 'none';
+                    document.getElementById('clothingPanel').style.display = 'none';
+                    
+                    // Resetear variables
+                    currentSessionId = null;
+                    currentTurn = 0;
+                    fullConversation = '';
+                    
+                    addMessage('system', '✅ Roleplay reseteado correctamente. Puedes comenzar una nueva sesión.');
+                } else {
+                    throw new Error(data.message || 'Error desconocido');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('❌ Error al resetear el roleplay: ' + error.message);
+            })
+            .finally(() => {
+                showLoading(false);
+            });
+        }
+
+        function updateClothingPanel() {
+            // Esta función simularía la actualización del panel de vestimenta
+            // En una implementación real, obtendría datos del servidor
+            const clothingStatus = document.getElementById('clothingStatus');
+            clothingStatus.innerHTML = `
+                <div class="clothing-status">
+                    <strong><i class="fas fa-tshirt"></i> Estado de Vestimenta:</strong>
+                    <div>• ${getCurrentConfig().aiCharacter}: Túnica azul, botas de cuero</div>
+                    <div>• ${getCurrentConfig().userCharacter}: Armadura completa, capa roja</div>
+                    <small class="text-muted">El sistema detecta cambios automáticamente durante la conversación</small>
+                </div>
+            `;
+        }
+
+        function saveConversation() {
+            if (!fullConversation) {
+                alert('No hay conversación para guardar');
+                return;
+            }
+            
+            const config = getCurrentConfig();
+            const blob = new Blob([`ROLEPLAY SESSION - ${new Date().toLocaleString()}\n\n` +
+                                  `Personajes: ${config.userCharacter} & ${config.aiCharacter}\n` +
+                                  `Escenario: ${config.scenario}\n` +
+                                  `Género: ${config.genre}\n\n` +
+                                  `CONVERSACIÓN:\n${fullConversation}`], 
+                                  { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `roleplay_${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+        }
+
+        function showLoading(show) {
+            const sendButton = document.getElementById('sendButton');
+            const chatInput = document.getElementById('chatInput');
+            const resetButton = document.getElementById('resetButton');
+            
+            if (show) {
+                sendButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                sendButton.disabled = true;
+                chatInput.disabled = true;
+                resetButton.disabled = true;
+                document.body.classList.add('loading');
+            } else {
+                sendButton.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
+                sendButton.disabled = false;
+                chatInput.disabled = false;
+                resetButton.disabled = false;
+                document.body.classList.remove('loading');
+            }
+        }
+
+        function updateStatus(message, type) {
+            const statusIndicator = document.getElementById('statusIndicator');
+            statusIndicator.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
+            statusIndicator.className = `alert alert-${type} mb-4`;
+        }
+
+        // Prevenir que el modal se cierre al hacer clic dentro
+        document.getElementById('configModal').addEventListener('click', function(event) {
+            event.stopPropagation();
+        });
+
+        // Cerrar modal con ESC key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeConfig();
+            }
+        });
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Página de roleplay cargada correctamente');
+            
+            // Cargar configuración previa si existe
+            const savedConfig = localStorage.getItem('roleplayConfig');
+            if (savedConfig) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    document.getElementById('userCharacter').value = config.userCharacter || '';
+                    document.getElementById('aiCharacter').value = config.aiCharacter || '';
+                    document.getElementById('scenario').value = config.scenario || '';
+                    document.getElementById('genre').value = config.genre || '';
+                    document.getElementById('perspective').value = config.perspective || '';
+                    document.getElementById('relationship').value = config.relationship || '';
+                    document.getElementById('enableClothingTracking').checked = config.enableClothing !== false;
+                } catch (e) {
+                    console.error('Error cargando configuración:', e);
+                }
+            }
+
+            // Verificar estado del servicio
+            checkServiceStatus();
+        });
+
+        function checkServiceStatus() {
+            fetch('/api/roleplay/status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && data.initialized) {
+                        updateStatus('✅ Conectado al servicio de Roleplay AI', 'success');
+                        isAIReady = true;
+                    } else {
+                        updateStatus('⚠️ Servicio de Roleplay AI no disponible', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking status:', error);
+                    updateStatus('❌ No se pudo conectar al servicio de Roleplay AI', 'danger');
+                });
+        }
+    </script>
+</body>
+</html>
